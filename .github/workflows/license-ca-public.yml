@@ -14,20 +14,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install gcloud
+      - name: Configure S3 CLI
         env:
-          GOOGLE_SERVICE_ACCOUNT_JSON_KEY: ${{ secrets.LICENSE_ISSUER_ACCOUNT_JSON_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+          AWS_S3_ENDPOINT: ${{ secrets.CLOUDFLARE_R2_ENDPOINT }}
         run: |
-          echo "install gcloud cli"
-          echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
-          curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
+          echo "install aws cli"
           sudo apt-get -qq update || true
-          sudo apt-get install -y google-cloud-sdk
+          sudo apt-get install -y python3-pip
+          pip3 install awscli
           echo
-          echo "configure gcloud auth"
-          echo "$GOOGLE_SERVICE_ACCOUNT_JSON_KEY" > "$HOME"/gcloud.json
-          gcloud auth activate-service-account --key-file=$HOME/gcloud.json
+          echo "configure aws credentials"
+          aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+          aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+          aws configure set region us-east-1
+          aws configure set s3.signature_version s3v4
+          aws configure set endpoint_url $AWS_S3_ENDPOINT
 
       - name: Make CA Public
         run: |
-          gsutil acl ch -u AllUsers:R gs://licenses.appscode.com/certificates/ca.crt
+          aws s3api put-object-acl --bucket licenses-appscode-com --key certificates/ca.crt --acl public-read
